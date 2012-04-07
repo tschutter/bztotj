@@ -1,0 +1,172 @@
+# $Id: bzexample.tjp,v 1.3 2006/03/29 00:19:06 tom Exp $
+#
+# Example Taskjuggler project to use with bztotj.py and date_macros.py
+#
+# Copyright (c) 2006-2006 Tom Schutter
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+#    - Redistributions of source code must retain the above copyright
+#      notice, this list of conditions and the following disclaimer.
+#    - Redistributions in binary form must reproduce the above
+#      copyright notice, this list of conditions and the following
+#      disclaimer in the documentation and/or other materials provided
+#      with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
+include "date_macros.tji"
+
+project bzexample "Example" "1.0" 2005-05-01 ${DATE_TODAY_PLUS_1_MONTH} {
+  # Hide the clock time. Only show the date.
+  timeformat "%Y-%m-%d"
+
+  weekstartssunday
+  timingresolution 1h
+
+  scenario plan "Plan" { }
+
+  include "bugzilla_project.tji"
+}
+
+# Flag declarations.
+include "bugzilla_flags.tji"
+
+# Resource definitions
+resource tom "Tom" {
+  vacation 2006-06-12 - 2006-06-21
+}
+resource dick "Dick" {
+}
+resource harry "Harry" {
+}
+
+# Include the tasks exported from Bugzilla
+task resolved_tasks "Resolved Tasks" { }
+include "bzexample_resolved_tasks.tji" { taskprefix resolved_tasks }
+task open_tasks "Open Tasks" {
+  start ${DATE_TODAY}
+}
+include "bzexample_open_tasks.tji" { taskprefix open_tasks }
+
+# A traditional Gantt Chart for the TaskJugglerUI
+taskreport "Gantt Chart" {
+  headline "Project Gantt Chart"
+  caption "Created ${DATETIME_NOW_LABEL}"
+  columns hierarchindex, BugID, Product, Priority, name, resources, start, effort { title "Days" }, chart
+  # For this report we like to have the abbreviated weekday in front
+  # of the date. %a is the tag for this.
+  timeformat "%a %Y-%m-%d"
+  loadunit days
+  hideresource 1
+}
+
+# A list of tasks showing the resources assigned to each task.
+taskreport "Tasks" {
+  headline "Task Report"
+  caption "Created ${DATETIME_NOW_LABEL}"
+  columns hierarchindex, BugID, Product, Priority, name, start, end, effort { title "Work" }, duration
+  timeformat "%Y-%m-%d"
+  loadunit days
+  hideresource 0
+}
+
+# A graph showing resource allocation. It identifies whether each
+# resource is under- or over-allocated for.
+resourcereport "Resource Graph" {
+  headline "Resource Allocation Graph"
+  caption "Created ${DATETIME_NOW_LABEL}"
+  columns no, name, chart
+  loadunit days
+  hidetask 0
+  end 2006-07-01
+}
+
+# This report looks like a regular calendar that shows the tasks by
+# their dates.
+htmlweeklycalendar "bzexample_calendar.html" {
+  headline "Calendar For All Staff"
+  caption "Created ${DATETIME_NOW_LABEL}"
+  start ${DATE_TODAY}
+  columns BugID, Product, Priority, AssignedTo, name
+  sorttasks prioritydown # required for hidetask to work
+  hidetask ~isLeaf() # drop meta bugs
+}
+
+#htmlweeklycalendar "bzexample_calendar_tom.html" {
+#  start ${DATE_TODAY}
+#  headline "Calendar For Tom"
+#  columns BugID, Product, Priority, AssignedTo, name
+#  sorttasks prioritydown # required for hidetask to work
+#  hidetask ~isResource(tom)
+#}
+
+htmlresourcereport "bzexample_staff.html" {
+  headline "Staff Report"
+  caption "Created ${DATETIME_NOW_LABEL}, sorted by start date"
+  start ${DATE_TODAY}
+  columns BugID, Product, Priority, name, start, end, effort { title "Effort (days)" }
+  hidetask ~isleaf() | flagIsResolved
+  sorttasks startup
+}
+
+htmltaskreport "bzexample_completed.html" {
+  headline "Completed Tasks"
+  caption "Created ${DATETIME_NOW_LABEL}, reverse sorted by completion date"
+  end ${DATETIME_NOW}
+  columns no, BugID, Product, Severity, AssignedTo, name, end
+  hidetask ~isleaf() | ~isMilestone()
+  sorttasks enddown
+}
+
+htmltaskreport "bzexample_tasks.html" {
+  headline "Open Tasks"
+  caption "Created ${DATETIME_NOW_LABEL}, sorted by start date"
+  start ${DATE_TODAY}
+  columns no, BugID, Product, Priority, Severity, AssignedTo, name, end
+  hidetask ~isleaf() | flagIsResolved
+  sorttasks startup
+}
+
+htmltaskreport "bzexample_enhancements.html" {
+  headline "Open Enhancements"
+  caption "Created ${DATETIME_NOW_LABEL}, sorted by end date"
+  start ${DATE_TODAY}
+  columns no, BugID, Product, Priority, AssignedTo, name, start, end
+  hidetask ~isleaf() | (~flagIsEnhancement & ~isMilestone()) | flagIsResolved
+  sorttasks endup
+}
+
+htmlresourcereport "bzexample_estimate_needed.html" {
+  headline "Time Estimate Needed Report"
+  caption "Created ${DATETIME_NOW_LABEL}"
+  start ${DATE_TODAY}
+  columns no, BugID, Product, Priority, Severity, AssignedTo, name
+  hidetask ~flagEstimateNeeded | flagIsResolved
+  sortresources nameup
+  sorttasks startup
+}
+
+htmltaskreport "bzexample_priority_needed.html" {
+  headline "Priority Needed Report"
+  caption "Created ${DATETIME_NOW_LABEL}"
+  start ${DATE_TODAY}
+  columns no, BugID, Product, Priority, Severity, AssignedTo, name
+  hidetask ~flagPriorityNeeded | flagIsResolved
+  sorttasks startup
+}
