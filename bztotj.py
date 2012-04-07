@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 """
-
 Export Bugzilla bugs to a TaskJuggler project.
 
 This script relies on the following packages to be installed:
@@ -40,8 +39,6 @@ POSSIBILITY OF SUCH DAMAGE.
 # Configuration variables
 FLAGS_FILENAME = "bugzilla_flags.tji"
 PROJECT_FILENAME = "bugzilla_project.tji"
-META_TAG = "META: "
-UN_PRIORITIZED = "P5"  # see https://bugzilla.mozilla.org/show_bug.cgi?id=49862
 PRIORITY_DICTIONARY = {
    "P1": "900",
    "P2": "700",
@@ -49,102 +46,67 @@ PRIORITY_DICTIONARY = {
    "P4": "300",
    "P5": "100"
 }
-DEFAULT_EFFORT = "16.0h"
-
 DB_SCHEME = "mysql"           # what type of database?
-
-# Values from /etc/bugzilla/localconfig
-DB_HOST = "bugzilla.bou.platte.com"  # where is the database?
-DB_PORT = 3306                # which port to use
-DB_NAME = "bugzilla"          # name of the MySQL database
-DB_USER = "bugzilla"          # user to attach to the MySQL database
-DB_PASS = "jayzilla"          # password for DB_USER
-
-URLBASE = "http://bugzilla.bou.platte.com:8080/"
-
 # End of configuration variables
 
 # The preferred database package is adodb, but debian-3.1 does not
 # have python-adodb.
 # from adodb import adodb
 import MySQLdb
+import optparse
 import sys
 
 
 def write_flags_file():
     """Write include file with flags."""
-    # Open the output file
-    outfile = open(FLAGS_FILENAME, "w")
+    with open(FLAGS_FILENAME, "w") as outfile:
+        # Write header
+        outfile.write("# Written by %s\n" % __file__)
+        outfile.write(
+            "# Should be included at main level after the project section\n"
+        )
 
-    # Write header
-    outfile.write("# Written by bztotj.py\n")
-    outfile.write(
-        "# Should be included at main level after the project section\n"
-    )
-
-    # Write flags
-    outfile.write("flags flagIsEnhancement\n")
-    outfile.write("flags flagIsResolved\n")
-    outfile.write("flags flagEstimateNeeded\n")
-    outfile.write("flags flagPriorityNeeded\n")
-
-    # Close the output file
-    outfile.close()
+        # Write flags
+        outfile.write("flags flagIsEnhancement\n")
+        outfile.write("flags flagIsResolved\n")
+        outfile.write("flags flagEstimateNeeded\n")
+        outfile.write("flags flagPriorityNeeded\n")
 
 
 def write_project_data():
     """Write project include file."""
-    # Open the output file
-    outfile = open(PROJECT_FILENAME, "w")
+    with open(PROJECT_FILENAME, "w") as outfile:
+        # Write header
+        outfile.write("# Written by bztotj.py\n")
+        outfile.write("# Should be included inside the project section\n")
 
-    # Write header
-    outfile.write("# Written by bztotj.py\n")
-    outfile.write("# Should be included inside the project section\n")
-
-    # Write each task extensions to the file
-    outfile.write(
-        "extend task {\n"
-        "  text BugID \"BugID\"\n"
-        "}\n"
-    )
-    outfile.write(
-        "extend task {\n"
-        "  text BugURL \"BugURL\"\n"
-        "}\n"
-    )
-    outfile.write(
-        "extend task {\n"
-        "  reference BugRef \"BugRef\"\n"
-        "}\n"
-    )
-    outfile.write(
-        "extend task {\n"
-        "  text Priority \"Priority\"\n"
-        "}\n"
-    )
-    outfile.write(
-        "extend task {\n"
-        "  text Product \"Product\"\n"
-        "}\n"
-    )
-    outfile.write(
-        "extend task {\n"
-        "  text Severity \"Severity\"\n"
-        "}\n"
-    )
-    outfile.write(
-        "extend task {\n"
-        "  text Keywords \"Keywords\"\n"
-        "}\n"
-    )
-    outfile.write(
-        "extend task {\n"
-        "  text AssignedTo \"AssignedTo\"\n"
-        "}\n"
-    )
-
-    # Close the output file
-    outfile.close()
+        # Write each task extension to the file.
+        outfile.write(
+            "extend task {\n"
+            "  text BugID \"BugID\"\n"
+            "}\n"
+            "extend task {\n"
+            "  text BugURL \"BugURL\"\n"
+            "}\n"
+            "extend task {\n"
+            "  reference BugRef \"BugRef\"\n"
+            "}\n"
+            "extend task {\n"
+            "  text Priority \"Priority\"\n"
+            "}\n"
+            "extend task {\n"
+            "  text Product \"Product\"\n"
+            "}\n"
+            "extend task {\n"
+            "  text Severity \"Severity\"\n"
+            "}\n"
+            "extend task {\n"
+            "  text Keywords \"Keywords\"\n"
+            "}\n"
+            "extend task {\n"
+            "  text AssignedTo \"AssignedTo\"\n"
+            "}\n"
+        )
 
 
 def get_relative_name(task_list, bug_id, current_name):
@@ -167,7 +129,7 @@ def get_relative_name(task_list, bug_id, current_name):
 
 
 class TaskjugglerTask(object):
-    """A TaskJuggler task"""
+    """A TaskJuggler task."""
     def __init__(
         self,
         milestone,
@@ -204,10 +166,10 @@ class TaskjugglerTask(object):
         self.task_list = []
         self.depends = []
 
-    def write(self, outfile, root_list, nesting_level):
+    def write(self, options, outfile, root_list, nesting_level):
         """Write task to outfile."""
         indent = "  " * nesting_level
-        bugurl = "%sshow_bug.cgi?id=%i" % (URLBASE, self.bug_id)
+        bugurl = "%sshow_bug.cgi?id=%i" % (options.baseurl, self.bug_id)
         outfile.write(
             indent + "task bug_%i \"%s\" {\n" % (self.bug_id, self.name) +
             indent + "  BugID \"%i\"\n" % self.bug_id +
@@ -233,7 +195,6 @@ class TaskjugglerTask(object):
                 args += relative_name
             if len(args) > 0:
                 outfile.write(indent + "  depends " + args + "\n")
-            exit
 
         if self.is_meta:
             if len(self.task_list) == 0:
@@ -272,20 +233,9 @@ class TaskjugglerTask(object):
         outfile.write(indent + "}\n")
 
 
-def build_resolved_bug_task_list(milestone):
+def build_resolved_bug_task_list(options, connection, milestone):
     """Build a list of resolved bugs."""
     task_list = []
-
-    # Connect to the Bugzilla database
-    #connection = adodb.NewADOConnection(DB_SCHEME)
-    #connection.Connect(DB_HOST, DB_USER, DB_PASS, DB_NAME)
-    connection = MySQLdb.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        passwd=DB_PASS,
-        db=DB_NAME
-    )
 
     # Process resolved bugs -> milestones
     columns = "bugs.bug_id,bugs.priority,products.name,bugs.bug_severity," +\
@@ -322,7 +272,7 @@ def build_resolved_bug_task_list(milestone):
         flag_estimate_needed = False
         flag_priority_needed = False
         is_meta = False
-        if summary.startswith(META_TAG):
+        if summary.startswith(options.meta_prefix):
             continue
 
         # Translate Bugzilla values to TaskJuggler values
@@ -357,27 +307,12 @@ def build_resolved_bug_task_list(milestone):
     #cursor.Close()
     cursor.close()
 
-    # Close the connection to the Bugzilla database
-    #connection.Close()
-    connection.close()
-
     return task_list
 
 
-def build_open_bug_task_list(milestone):
+def build_open_bug_task_list(options, connection, milestone):
     """Build a list of open bugs."""
     task_list = []
-
-    # Connect to the Bugzilla database
-    #connection = adodb.NewADOConnection(DB_SCHEME)
-    #connection.Connect(DB_HOST, DB_USER, DB_PASS, DB_NAME)
-    connection = MySQLdb.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        passwd=DB_PASS,
-        db=DB_NAME
-    )
 
     columns = "bugs.bug_id,bugs.priority,products.name,bugs.bug_severity," +\
         "bugs.keywords,profiles.login_name,bugs.estimated_time," +\
@@ -412,14 +347,14 @@ def build_open_bug_task_list(milestone):
         flag_estimate_needed = False
         flag_priority_needed = False
         is_meta = False
-        if summary.startswith(META_TAG):
-            summary = summary[len(META_TAG):]
+        if summary.startswith(options.meta_prefix):
+            summary = summary[len(options.meta_prefix):]
             is_meta = True
 
         # Translate Bugzilla values to TaskJuggler values
         name = summary.replace('"', "'")
         resource = bz_assigned_to.split("@")[0].replace(".", "")
-        if bz_priority == UN_PRIORITIZED:
+        if bz_priority == options.not_prioritized:
             flag_priority_needed = True
         priority = PRIORITY_DICTIONARY.get(bz_priority, "100")
         fixed_timestamp = ""
@@ -428,7 +363,7 @@ def build_open_bug_task_list(milestone):
         elif estimated_time > 0.0:
             effort = str(estimated_time) + "h"
         else:
-            effort = DEFAULT_EFFORT
+            effort = options.default_effort
             flag_estimate_needed = True
 
         # Optional, simplify the Bugzilla assigned to
@@ -480,34 +415,103 @@ def build_open_bug_task_list(milestone):
         #cursor.Close()
         cursor.close()
 
-    # Close the connection to the Bugzilla database
-    #connection.Close()
-    connection.close()
-
     return task_list
 
 
-def write_task_list(task_list, filename):
+def write_task_list(options, task_list, filename):
     """Write a task list to a file."""
-    # Open the output file
-    outfile = open(filename, "w")
-
-    # Write each task to the file
-    for task in task_list:
-        task.write(outfile, task_list, 0)
-
-    # Close the output file
-    outfile.close()
+    with open(filename, "w") as outfile:
+        for task in task_list:
+            task.write(options, outfile, task_list, 0)
 
 
 def main():
     """main"""
+    option_parser = optparse.OptionParser(
+        usage="usage: %prog [options]\n" +
+            "  Exports Bugzilla bugs to a TaskJuggler project." +
+            "  See /etc/bugzilla/localconfig for --db-* values."
+    )
+    option_parser.add_option(
+        "--meta-prefix",
+        action="store",
+        dest="meta_prefix",
+        metavar="STR",
+        default="META: ",
+        help="name prefix for meta bugs (default=%default)"
+    )
+    # see https://bugzilla.mozilla.org/show_bug.cgi?id=49862
+    option_parser.add_option(
+        "--not-prioritized",
+        action="store",
+        dest="not_prioritized",
+        metavar="PRIORITY",
+        default="P5",
+        help="Bugzilla priority of non-prioritized bugs (default=%default)"
+    )
+    option_parser.add_option(
+        "--default-effort",
+        action="store",
+        dest="default_effort",
+        metavar="STR",
+        default="16.0h",
+        help="effort to use if bug as no effort assigned (default=%default)"
+    )
+
+    option_parser.add_option(
+        "--db-host",
+        action="store",
+        dest="db_host",
+        metavar="HOST",
+        default="bugzilla.microsoft.com",
+        help="Bugzilla database hostname (default=%default)"
+    )
+    option_parser.add_option(
+        "--db-port",
+        action="store",
+        type="int",
+        dest="db_port",
+        metavar="PORT",
+        default=3306,
+        help="Bugzilla database port (default=%default)"
+    )
+    option_parser.add_option(
+        "--db-name",
+        action="store",
+        dest="db_name",
+        metavar="NAME",
+        default="bugzilla",
+        help="Bugzilla database name (default=%default)"
+    )
+    option_parser.add_option(
+        "--db-user",
+        action="store",
+        dest="db_user",
+        metavar="NAME",
+        default="bugzilla",
+        help="Bugzilla database user (default=%default)"
+    )
+    option_parser.add_option(
+        "--db-pass",
+        action="store",
+        dest="db_pass",
+        metavar="PASSWORD",
+        default="billg",
+        help="Bugzilla database password (default=%default)"
+    )
+    option_parser.add_option(
+        "--baseurl",
+        action="store",
+        dest="baseurl",
+        metavar="URL",
+        default="http://bugzilla.microsoft.com:80/",
+        help="Bugzilla base URL (default=%default)"
+    )
 
     # Process arguments
-    if len(sys.argv) < 2:
-        print "ERROR: No milestone specified."
-        print "USAGE: " + sys.argv[0] + " MILESTONE [MILESTONE...]"
-        sys.exit()
+    (options, args) = option_parser.parse_args()
+    if len(args) < 1:
+        option_parser.error("No milestone specified.")
 
     # Write the flags data file
     write_flags_file()
@@ -515,18 +519,42 @@ def main():
     # Write the project data file
     write_project_data()
 
-    for milestone in sys.argv[1:]:
+    # Connect to the Bugzilla database
+    #connection = adodb.NewADOConnection(DB_SCHEME)
+    #connection.Connect(
+    #    options.db_host,
+    #    options.db_user,
+    #    options.db_pass,
+    #    options.db_name
+    #)
+    connection = MySQLdb.connect(
+        host=options.db_host,
+        port=options.db_port,
+        user=options.db_user,
+        passwd=options.db_pass,
+        db=options.db_name
+    )
+
+    for milestone in args:
         # Build a task list of resolved bugs from the Bugzilla database
-        task_list = build_resolved_bug_task_list(milestone)
+        task_list = build_resolved_bug_task_list(
+            options,
+            connection,
+            milestone
+        )
 
         # Write the task list to the output file
-        write_task_list(task_list, milestone + "_resolved_tasks.tji")
+        write_task_list(options, task_list, milestone + "_resolved_tasks.tji")
 
         # Build a task list of open bugs from the Bugzilla database
-        task_list = build_open_bug_task_list(milestone)
+        task_list = build_open_bug_task_list(options, connection, milestone)
 
         # Write the task list to the output file
-        write_task_list(task_list, milestone + "_open_tasks.tji")
+        write_task_list(options, task_list, milestone + "_open_tasks.tji")
+
+    # Close the connection to the Bugzilla database
+    #connection.Close()
+    connection.close()
 
 
 if __name__ == "__main__":
