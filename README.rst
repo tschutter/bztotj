@@ -17,7 +17,3 @@ To Do
 * Update to current Bugzilla schema.
 
 * Update to current TaskJuggler syntax.
-
-* Remove usage of date_macros.tji.
-
-* Remove MySQL dependencies and make DB agnostic.
