@@ -3,10 +3,6 @@
 """
 Export Bugzilla bugs to a TaskJuggler project.
 
-This script relies on the following packages to be installed:
-  python
-  python-mysqldb
-
 Copyright (c) 2006-2012 Tom Schutter
 All rights reserved.
 
@@ -35,6 +31,17 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 """
 
+from __future__ import print_function
+import optparse
+import sys
+
+try:
+    import pyodbc
+except Exception:
+    print("Unable to import pyodbc", file=sys.stderr)
+    print("On Debian: sudo apt-get install python-pyodbc", file=sys.stderr)
+    print("Or install from code.google.com/p/pyodbc/", file=sys.stderr)
+    sys.exit(1)
 
 # Configuration variables
 FLAGS_FILENAME = "bugzilla_flags.tji"
@@ -46,15 +53,7 @@ PRIORITY_DICTIONARY = {
    "P4": "300",
    "P5": "100"
 }
-DB_SCHEME = "mysql"           # what type of database?
 # End of configuration variables
-
-# The preferred database package is adodb, but debian-3.1 does not
-# have python-adodb.
-# from adodb import adodb
-import MySQLdb
-import optparse
-import sys
 
 
 def write_flags_file():
@@ -254,11 +253,8 @@ def build_resolved_bug_task_list(options, connection, milestone):
     group = " GROUP BY bugs.bug_id,bugs_activity.added"
     sql = "SELECT " + columns + from_clause + where + group
 
-    #rows = connection.Execute(sql)
     cursor = connection.cursor()
-    cursor.execute(sql)
-    rows = cursor.fetchall()
-    for row in rows:
+    for row in cursor.execute(sql):
         # Get the values from the record
         bug_id = row[0]
         bz_priority = row[1]
@@ -304,7 +300,6 @@ def build_resolved_bug_task_list(options, connection, milestone):
             )
         )
 
-    #cursor.Close()
     cursor.close()
 
     return task_list
@@ -328,11 +323,8 @@ def build_open_bug_task_list(options, connection, milestone):
     where += " OR bug_status='REOPENED')"
     sql = "SELECT " + columns + from_clause + where
 
-    #rows = connection.Execute(sql)
     cursor = connection.cursor()
-    cursor.execute(sql)
-    rows = cursor.fetchall()
-    for row in rows:
+    for row in cursor.execute(sql):
         # Get the values from the record
         bug_id = row[0]
         bz_priority = row[1]
@@ -389,18 +381,14 @@ def build_open_bug_task_list(options, connection, milestone):
             )
         )
 
-    #cursor.Close()
     cursor.close()
 
     # Process bug dependencies
     sql = "SELECT dependson FROM dependencies WHERE blocked="
     task_list_copy = task_list[:]
     for task in task_list_copy:
-        #rows = connection.Execute(sql + str(task.bug_id))
         cursor = connection.cursor()
-        cursor.execute(sql + str(task.bug_id))
-        rows = cursor.fetchall()
-        for row in rows:
+        for row in cursor.execute(sql + str(task.bug_id)):
             dependson = row[0]
 
             if (task.is_meta):
@@ -412,7 +400,6 @@ def build_open_bug_task_list(options, connection, milestone):
                         break
             else:
                 task.depends.append(dependson)
-        #cursor.Close()
         cursor.close()
 
     return task_list
@@ -429,7 +416,7 @@ def main():
     """main"""
     option_parser = optparse.OptionParser(
         usage="usage: %prog [options]\n" +
-            "  Exports Bugzilla bugs to a TaskJuggler project." +
+            "  Exports Bugzilla bugs to a TaskJuggler project.\n" +
             "  See /etc/bugzilla/localconfig for --db-* values."
     )
     option_parser.add_option(
@@ -459,6 +446,14 @@ def main():
     )
 
     option_parser.add_option(
+        "--db-driver",
+        action="store",
+        dest="db_driver",
+        metavar="DRIVER",
+        default="MySQL",
+        help="Bugzilla database software (default=%default)"
+    )
+    option_parser.add_option(
         "--db-host",
         action="store",
         dest="db_host",
@@ -469,10 +464,10 @@ def main():
     option_parser.add_option(
         "--db-port",
         action="store",
-        type="int",
+        type="str",
         dest="db_port",
         metavar="PORT",
-        default=3306,
+        default="3306",
         help="Bugzilla database port (default=%default)"
     )
     option_parser.add_option(
@@ -520,19 +515,13 @@ def main():
     write_project_data()
 
     # Connect to the Bugzilla database
-    #connection = adodb.NewADOConnection(DB_SCHEME)
-    #connection.Connect(
-    #    options.db_host,
-    #    options.db_user,
-    #    options.db_pass,
-    #    options.db_name
-    #)
-    connection = MySQLdb.connect(
-        host=options.db_host,
+    connection = pyodbc.connect(
+        driver="{%s}" % options.db_driver,
+        server=options.db_host,
         port=options.db_port,
-        user=options.db_user,
-        passwd=options.db_pass,
-        db=options.db_name
+        uid=options.db_user,
+        pwd=options.db_pass,
+        database=options.db_name
     )
 
     for milestone in args:
@@ -553,7 +542,6 @@ def main():
         write_task_list(options, task_list, milestone + "_open_tasks.tji")
 
     # Close the connection to the Bugzilla database
-    #connection.Close()
     connection.close()
 
 
