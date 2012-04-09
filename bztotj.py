@@ -442,9 +442,8 @@ def main():
         dest="default_effort",
         metavar="STR",
         default="16.0h",
-        help="effort to use if bug as no effort assigned (default=%default)"
+        help="effort to use if bug has no effort assigned (default=%default)"
     )
-
     option_parser.add_option(
         "--db-driver",
         action="store",
