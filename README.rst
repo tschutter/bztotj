@@ -5,9 +5,37 @@ Export Bugzilla bugs to a TaskJuggler project.
 
 Usage
 -----
-::
+
+Export bugs to a TaskJuggler include file::
 
     bztotj.py MILESTONE [MILESTONE...]
+
+This creates the files "bugzilla_flags.tji", "bugzilla_project.tji",
+"MILESTONE_resolved_tasks.tji", and "MILESTONE_open_tasks.tji".
+Import them as show in the example project "bzexample.tjp"::
+
+    project bzexample "Example" "1.0" 2012-05-01 2012-06-01 {
+      include "bugzilla_project.tji"
+    }
+
+    # Flag declarations.
+    include "bugzilla_flags.tji"
+
+    # Resource definitions.
+    # Define Bugzilla users here.
+    resource tjefferson "Thomas Jefferson" { }
+
+    # Include the tasks exported from Bugzilla
+    task resolved_tasks "Resolved Tasks" { }
+    include "bzexample_resolved_tasks.tji" { taskprefix resolved_tasks }
+    task open_tasks "Open Tasks" {
+      start 2012-05-01
+    }
+    include "bzexample_open_tasks.tji" { taskprefix open_tasks }
+
+    # Charts
+    ...
+
 
 Bugzilla Assumptions
 --------------------
