@@ -457,7 +457,7 @@ def main():
         action="store",
         dest="db_host",
         metavar="HOST",
-        default="bugzilla.microsoft.com",
+        default="bugzilla.monticello.com",
         help="Bugzilla database hostname (default=%default)"
     )
     option_parser.add_option(
@@ -490,7 +490,7 @@ def main():
         action="store",
         dest="db_pass",
         metavar="PASSWORD",
-        default="billg",
+        default="tjefferson",
         help="Bugzilla database password (default=%default)"
     )
     option_parser.add_option(
@@ -498,7 +498,7 @@ def main():
         action="store",
         dest="baseurl",
         metavar="URL",
-        default="http://bugzilla.microsoft.com:80/",
+        default="http://bugzilla.monticello.com/",
         help="Bugzilla base URL (default=%default)"
     )
 
