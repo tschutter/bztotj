@@ -36,11 +36,10 @@ import optparse
 import sys
 
 try:
-    import pyodbc
+    import mysql.connector
 except Exception:
-    print("Unable to import pyodbc", file=sys.stderr)
-    print("On Debian: sudo apt-get install python-pyodbc", file=sys.stderr)
-    print("Or install from http://code.google.com/p/pyodbc/", file=sys.stderr)
+    print("Unable to import mysql.connector", file=sys.stderr)
+    print("Get from https://launchpad.net/myconnpy/", file=sys.stderr)
     sys.exit(1)
 
 # Configuration variables
@@ -118,7 +117,7 @@ def get_relative_name(task_list, bug_id, current_name):
         if task.bug_id == bug_id:
             return new_current_name
         relative_name = get_relative_name(
-            task.taskList,
+            task.task_list,
             bug_id,
             new_current_name
         )
@@ -232,7 +231,7 @@ class TaskjugglerTask(object):
         outfile.write(indent + "}\n")
 
 
-def build_resolved_bug_task_list(options, connection, milestone):
+def build_resolved_bug_task_list(options, db_connection, milestone):
     """Build a list of resolved bugs."""
     task_list = []
 
@@ -253,8 +252,9 @@ def build_resolved_bug_task_list(options, connection, milestone):
     group = " GROUP BY bugs.bug_id,bugs_activity.added"
     sql = "SELECT " + columns + from_clause + where + group
 
-    cursor = connection.cursor()
-    for row in cursor.execute(sql):
+    cursor = db_connection.cursor()
+    cursor.execute(sql)
+    for row in cursor.fetchall():
         # Get the values from the record
         bug_id = row[0]
         bz_priority = row[1]
@@ -305,7 +305,7 @@ def build_resolved_bug_task_list(options, connection, milestone):
     return task_list
 
 
-def build_open_bug_task_list(options, connection, milestone):
+def build_open_bug_task_list(options, db_connection, milestone):
     """Build a list of open bugs."""
     task_list = []
 
@@ -323,8 +323,9 @@ def build_open_bug_task_list(options, connection, milestone):
     where += " OR bug_status='REOPENED')"
     sql = "SELECT " + columns + from_clause + where
 
-    cursor = connection.cursor()
-    for row in cursor.execute(sql):
+    cursor = db_connection.cursor()
+    cursor.execute(sql)
+    for row in cursor.fetchall():
         # Get the values from the record
         bug_id = row[0]
         bz_priority = row[1]
@@ -387,8 +388,9 @@ def build_open_bug_task_list(options, connection, milestone):
     sql = "SELECT dependson FROM dependencies WHERE blocked="
     task_list_copy = task_list[:]
     for task in task_list_copy:
-        cursor = connection.cursor()
-        for row in cursor.execute(sql + str(task.bug_id)):
+        cursor = db_connection.cursor()
+        cursor.execute(sql + str(task.bug_id))
+        for row in cursor.fetchall():
             dependson = row[0]
 
             if (task.is_meta):
@@ -412,13 +414,13 @@ def write_task_list(options, task_list, filename):
             task.write(options, outfile, task_list, 0)
 
 
-def export(options, milestones, connection):
+def export(options, milestones, db_connection):
     """Read from the Bugzilla database and export to the .tji file."""
     for milestone in milestones:
         # Build a task list of resolved bugs from the Bugzilla database
         task_list = build_resolved_bug_task_list(
             options,
-            connection,
+            db_connection,
             milestone
         )
 
@@ -426,7 +428,7 @@ def export(options, milestones, connection):
         write_task_list(options, task_list, milestone + "_resolved_tasks.tji")
 
         # Build a task list of open bugs from the Bugzilla database
-        task_list = build_open_bug_task_list(options, connection, milestone)
+        task_list = build_open_bug_task_list(options, db_connection, milestone)
 
         # Write the task list to the output file
         write_task_list(options, task_list, milestone + "_open_tasks.tji")
@@ -437,7 +439,7 @@ def main():
     option_parser = optparse.OptionParser(
         usage="usage: %prog [options]\n" +
             "  Exports Bugzilla bugs to a TaskJuggler project.\n" +
-            "  See /etc/bugzilla/localconfig for --db-* values."
+            "  See /etc/bugzilla3/localconfig for --db-* values."
     )
     option_parser.add_option(
         "--meta-prefix",
@@ -465,14 +467,6 @@ def main():
         help="effort to use if bug has no effort assigned (default=%default)"
     )
     option_parser.add_option(
-        "--db-driver",
-        action="store",
-        dest="db_driver",
-        metavar="DRIVER",
-        default="MySQL ODBC 5.1.6 Driver",
-        help="Bugzilla database driver (default=%default)"
-    )
-    option_parser.add_option(
         "--db-host",
         action="store",
         dest="db_host",
@@ -483,10 +477,10 @@ def main():
     option_parser.add_option(
         "--db-port",
         action="store",
-        type="str",
+        type="int",
         dest="db_port",
         metavar="PORT",
-        default="3306",
+        default=3306,
         help="Bugzilla database port (default=%default)"
     )
     option_parser.add_option(
@@ -529,25 +523,23 @@ def main():
 
     # Connect to the Bugzilla database
     try:
-        connection = pyodbc.connect(
-            driver="{%s}" % options.db_driver,
-            server=options.db_host,
+        db_connection = mysql.connector.connect(
+            host=options.db_host,
             port=options.db_port,
-            uid=options.db_user,
-            pwd=options.db_pass,
-            database=options.db_name
+            user=options.db_user,
+            passwd=options.db_pass,
+            db=options.db_name
         )
-    except Exception as (exc):
-        print(exc)
-        print("driver={%s}" % options.db_driver)
+    except Exception as exc:
+        print("Error connecting to database: %s" % exc, file=sys.stderr)
         return 1
 
     try:
         # Export from the database.
-        export(options, args)
+        export(options, args, db_connection)
     finally:
         # Close the connection to the Bugzilla database
-        connection.close()
+        db_connection.close()
 
     # Write the flags data file.
     write_flags_file()
