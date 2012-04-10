@@ -3,6 +3,8 @@
 """
 Export Bugzilla bugs to a TaskJuggler project.
 
+Tested with Bugzilla-3.6.2 and TaskJuggler-3.1.0.
+
 Copyright (c) 2006-2012 Tom Schutter
 All rights reserved.
 
@@ -262,7 +264,10 @@ def build_resolved_bug_task_list(options, db_connection, milestone):
         bz_severity = row[3]
         bz_keywords = row[4]
         bz_assigned_to = str(row[5])
-        fixed_timestamp = row[6].isoformat("-")
+        # timestamp must be aligned to timingresolution (1h)
+        timestamp = row[6]
+        timestamp = timestamp.replace(minute=0, second=0, microsecond=0)
+        fixed_timestamp = timestamp.isoformat("-")
         summary = row[7]
 
         flag_estimate_needed = False
