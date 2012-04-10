@@ -30,14 +30,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-include "date_macros.tji"
-
-project bzexample "Example" "1.0" 2005-05-01 ${DATE_TODAY_PLUS_1_MONTH} {
+project bzexample "Example" "1.0" 2009-01-15+4y {
   # Hide the clock time. Only show the date.
   timeformat "%Y-%m-%d"
 
   weekstartssunday
-  timingresolution 1h
+  timingresolution 60 min
 
   scenario plan "Plan" { }
 
@@ -60,113 +58,105 @@ resource harry "Harry" {
 task resolved_tasks "Resolved Tasks" { }
 include "bzexample_resolved_tasks.tji" { taskprefix resolved_tasks }
 task open_tasks "Open Tasks" {
-  start ${DATE_TODAY}
+  start ${now}
 }
 include "bzexample_open_tasks.tji" { taskprefix open_tasks }
 
 # A traditional Gantt Chart for the TaskJugglerUI
-taskreport "Gantt Chart" {
+taskreport "bzexample_gantt" {
   headline "Project Gantt Chart"
-  caption "Created ${DATETIME_NOW_LABEL}"
-  columns hierarchindex, BugID, Product, Priority, name, resources, start, effort { title "Days" }, chart
+  caption "Created ${now}"
+  columns hierarchindex, BugRef, Product, Priority, name, resources, start, effort { title "Days" }, chart
   # For this report we like to have the abbreviated weekday in front
   # of the date. %a is the tag for this.
   timeformat "%a %Y-%m-%d"
   loadunit days
   hideresource 1
+  formats html
 }
 
 # A list of tasks showing the resources assigned to each task.
-taskreport "Tasks" {
+taskreport "bzexample_tasks" {
   headline "Task Report"
-  caption "Created ${DATETIME_NOW_LABEL}"
-  columns hierarchindex, BugID, Product, Priority, name, start, end, effort { title "Work" }, duration
+  caption "Created ${now}"
+  columns hierarchindex, BugRef, Product, Priority, name, start, end, effort { title "Work" }, duration
   timeformat "%Y-%m-%d"
   loadunit days
   hideresource 0
+  formats html
 }
 
 # A graph showing resource allocation. It identifies whether each
 # resource is under- or over-allocated for.
-resourcereport "Resource Graph" {
+resourcereport "bzexample_resources" {
   headline "Resource Allocation Graph"
-  caption "Created ${DATETIME_NOW_LABEL}"
+  caption "Created ${now}"
   columns no, name, chart
   loadunit days
   hidetask 0
-  end 2006-07-01
+  start ${now}
+  formats html
 }
 
-# This report looks like a regular calendar that shows the tasks by
-# their dates.
-htmlweeklycalendar "bzexample_calendar.html" {
-  headline "Calendar For All Staff"
-  caption "Created ${DATETIME_NOW_LABEL}"
-  start ${DATE_TODAY}
-  columns BugID, Product, Priority, AssignedTo, name
-  sorttasks prioritydown # required for hidetask to work
-  hidetask ~isLeaf() # drop meta bugs
-}
-
-#htmlweeklycalendar "bzexample_calendar_tom.html" {
-#  start ${DATE_TODAY}
-#  headline "Calendar For Tom"
-#  columns BugID, Product, Priority, AssignedTo, name
-#  sorttasks prioritydown # required for hidetask to work
-#  hidetask ~isResource(tom)
-#}
-
-htmlresourcereport "bzexample_staff.html" {
+resourcereport "bzexample_staff" {
   headline "Staff Report"
-  caption "Created ${DATETIME_NOW_LABEL}, sorted by start date"
-  start ${DATE_TODAY}
-  columns BugID, Product, Priority, name, start, end, effort { title "Effort (days)" }
+  caption "Created ${now}, sorted by start date"
+  columns BugRef, Product, Priority, name, start, end, effort { title "Effort (days)" }
   hidetask ~isleaf() | flagIsResolved
-  sorttasks startup
+  sorttasks plan.start.up
+  start ${now}
+  formats html
 }
 
-htmltaskreport "bzexample_completed.html" {
+taskreport "bzexample_completed" {
   headline "Completed Tasks"
-  caption "Created ${DATETIME_NOW_LABEL}, reverse sorted by completion date"
-  end ${DATETIME_NOW}
-  columns no, BugID, Product, Severity, AssignedTo, name, end
-  hidetask ~isleaf() | ~isMilestone()
-  sorttasks enddown
+  caption "Created ${now}, reverse sorted by completion date"
+  end ${now}
+  columns no, BugRef, Product, Severity, AssignedTo, name, end
+  # hidetask ~isleaf() | ~ismilestone()
+  hidetask ~isleaf()
+  sorttasks plan.end.down
+  formats html
 }
 
-htmltaskreport "bzexample_tasks.html" {
+taskreport "bzexample_tasks" {
   headline "Open Tasks"
-  caption "Created ${DATETIME_NOW_LABEL}, sorted by start date"
-  start ${DATE_TODAY}
-  columns no, BugID, Product, Priority, Severity, AssignedTo, name, end
+  caption "Created ${now}, sorted by start date"
+  start ${now}
+  columns no, BugRef, Product, Priority, Severity, AssignedTo, name, end
   hidetask ~isleaf() | flagIsResolved
-  sorttasks startup
+  sorttasks plan.start.up
+  formats html
 }
 
-htmltaskreport "bzexample_enhancements.html" {
+taskreport "bzexample_enhancements" {
   headline "Open Enhancements"
-  caption "Created ${DATETIME_NOW_LABEL}, sorted by end date"
-  start ${DATE_TODAY}
-  columns no, BugID, Product, Priority, AssignedTo, name, start, end
-  hidetask ~isleaf() | (~flagIsEnhancement & ~isMilestone()) | flagIsResolved
-  sorttasks endup
+  caption "Created ${now}, sorted by end date"
+  start ${now}
+  columns no, BugRef, Product, Priority, AssignedTo, name, start, end
+  # hidetask ~isleaf() | (~flagIsEnhancement & ~ismilestone()) | flagIsResolved
+  hidetask ~isleaf() | (~flagIsEnhancement) | flagIsResolved
+  sorttasks plan.end.up
+  formats html
 }
 
-htmlresourcereport "bzexample_estimate_needed.html" {
+resourcereport "bzexample_estimate_needed" {
   headline "Time Estimate Needed Report"
-  caption "Created ${DATETIME_NOW_LABEL}"
-  start ${DATE_TODAY}
-  columns no, BugID, Product, Priority, Severity, AssignedTo, name
+  caption "Created ${now}"
+  start ${now}
+  columns no, BugRef, Product, Priority, Severity, AssignedTo, name
   hidetask ~flagEstimateNeeded | flagIsResolved
-  sortresources nameup
-  sorttasks startup
+  sortresources name.up
+  sorttasks plan.start.up
+  formats html
 }
 
-htmltaskreport "bzexample_priority_needed.html" {
+taskreport "bzexample_priority_needed" {
   headline "Priority Needed Report"
-  caption "Created ${DATETIME_NOW_LABEL}"
-  start ${DATE_TODAY}
-  columns no, BugID, Product, Priority, Severity, AssignedTo, name
+  caption "Created ${now}"
+  start ${now}
+  columns no, BugRef, Product, Priority, Severity, AssignedTo, name
   hidetask ~flagPriorityNeeded | flagIsResolved
-  sorttasks startup
+  sorttasks plan.start.up
+  formats html
 }
