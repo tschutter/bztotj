@@ -40,7 +40,7 @@ try:
 except Exception:
     print("Unable to import pyodbc", file=sys.stderr)
     print("On Debian: sudo apt-get install python-pyodbc", file=sys.stderr)
-    print("Or install from code.google.com/p/pyodbc/", file=sys.stderr)
+    print("Or install from http://code.google.com/p/pyodbc/", file=sys.stderr)
     sys.exit(1)
 
 # Configuration variables
@@ -392,7 +392,7 @@ def build_open_bug_task_list(options, connection, milestone):
             dependson = row[0]
 
             if (task.is_meta):
-                #print "META: %i<-%s" % (task.bug_id, str(dependson))
+                #print("META: %i<-%s" % (task.bug_id, str(dependson)))
                 for blocked_task in task_list:
                     if blocked_task.bug_id == dependson:
                         task.task_list.append(blocked_task)
@@ -410,6 +410,26 @@ def write_task_list(options, task_list, filename):
     with open(filename, "w") as outfile:
         for task in task_list:
             task.write(options, outfile, task_list, 0)
+
+
+def export(options, milestones, connection):
+    """Read from the Bugzilla database and export to the .tji file."""
+    for milestone in milestones:
+        # Build a task list of resolved bugs from the Bugzilla database
+        task_list = build_resolved_bug_task_list(
+            options,
+            connection,
+            milestone
+        )
+
+        # Write the task list to the output file
+        write_task_list(options, task_list, milestone + "_resolved_tasks.tji")
+
+        # Build a task list of open bugs from the Bugzilla database
+        task_list = build_open_bug_task_list(options, connection, milestone)
+
+        # Write the task list to the output file
+        write_task_list(options, task_list, milestone + "_open_tasks.tji")
 
 
 def main():
@@ -449,15 +469,15 @@ def main():
         action="store",
         dest="db_driver",
         metavar="DRIVER",
-        default="MySQL",
-        help="Bugzilla database software (default=%default)"
+        default="MySQL ODBC 5.1.6 Driver",
+        help="Bugzilla database driver (default=%default)"
     )
     option_parser.add_option(
         "--db-host",
         action="store",
         dest="db_host",
         metavar="HOST",
-        default="bugzilla.monticello.com",
+        default="localhost",
         help="Bugzilla database hostname (default=%default)"
     )
     option_parser.add_option(
@@ -474,7 +494,7 @@ def main():
         action="store",
         dest="db_name",
         metavar="NAME",
-        default="bugzilla",
+        default="bugzilla3",
         help="Bugzilla database name (default=%default)"
     )
     option_parser.add_option(
@@ -482,7 +502,7 @@ def main():
         action="store",
         dest="db_user",
         metavar="NAME",
-        default="bugzilla",
+        default="bugzilla3",
         help="Bugzilla database user (default=%default)"
     )
     option_parser.add_option(
@@ -490,7 +510,7 @@ def main():
         action="store",
         dest="db_pass",
         metavar="PASSWORD",
-        default="tjefferson",
+        default=None,
         help="Bugzilla database password (default=%default)"
     )
     option_parser.add_option(
@@ -507,41 +527,35 @@ def main():
     if len(args) < 1:
         option_parser.error("No milestone specified.")
 
-    # Write the flags data file
+    # Connect to the Bugzilla database
+    try:
+        connection = pyodbc.connect(
+            driver="{%s}" % options.db_driver,
+            server=options.db_host,
+            port=options.db_port,
+            uid=options.db_user,
+            pwd=options.db_pass,
+            database=options.db_name
+        )
+    except Exception as (exc):
+        print(exc)
+        print("driver={%s}" % options.db_driver)
+        return 1
+
+    try:
+        # Export from the database.
+        export(options, args)
+    finally:
+        # Close the connection to the Bugzilla database
+        connection.close()
+
+    # Write the flags data file.
     write_flags_file()
 
-    # Write the project data file
+    # Write the project data file.
     write_project_data()
 
-    # Connect to the Bugzilla database
-    connection = pyodbc.connect(
-        driver="{%s}" % options.db_driver,
-        server=options.db_host,
-        port=options.db_port,
-        uid=options.db_user,
-        pwd=options.db_pass,
-        database=options.db_name
-    )
-
-    for milestone in args:
-        # Build a task list of resolved bugs from the Bugzilla database
-        task_list = build_resolved_bug_task_list(
-            options,
-            connection,
-            milestone
-        )
-
-        # Write the task list to the output file
-        write_task_list(options, task_list, milestone + "_resolved_tasks.tji")
-
-        # Build a task list of open bugs from the Bugzilla database
-        task_list = build_open_bug_task_list(options, connection, milestone)
-
-        # Write the task list to the output file
-        write_task_list(options, task_list, milestone + "_open_tasks.tji")
-
-    # Close the connection to the Bugzilla database
-    connection.close()
+    return 0
 
 
 if __name__ == "__main__":
