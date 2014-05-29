@@ -21,11 +21,11 @@ except Exception:
 FLAGS_FILENAME = "bugzilla_flags.tji"
 PROJECT_FILENAME = "bugzilla_project.tji"
 PRIORITY_DICTIONARY = {
-   "P1": "900",
-   "P2": "700",
-   "P3": "500",
-   "P4": "300",
-   "P5": "100"
+    "P1": "900",
+    "P2": "700",
+    "P3": "500",
+    "P4": "300",
+    "P5": "100"
 }
 # End of configuration variables
 
@@ -159,7 +159,7 @@ class TaskjugglerTask(object):
                 relative_name = get_relative_name(
                     root_list,
                     depend,
-                     "!" * (nesting_level + 1)
+                    "!" * (nesting_level + 1)
                 )
                 if len(relative_name) == 0:
                     continue
@@ -372,7 +372,7 @@ def build_open_bug_task_list(options, db_connection, milestone):
             dependson = row[0]
 
             if (task.is_meta):
-                #print("META: %i<-%s" % (task.bug_id, str(dependson)))
+                # print("META: %i<-%s" % (task.bug_id, str(dependson)))
                 for blocked_task in task_list:
                     if blocked_task.bug_id == dependson:
                         task.task_list.append(blocked_task)
@@ -415,9 +415,11 @@ def export(options, milestones, db_connection):
 def main():
     """main"""
     option_parser = optparse.OptionParser(
-        usage="usage: %prog [options]\n" +
-            "  Exports Bugzilla bugs to a TaskJuggler project.\n" +
+        usage=(
+            "usage: %prog [options]\n"
+            "  Exports Bugzilla bugs to a TaskJuggler project.\n"
             "  See /etc/bugzilla3/localconfig for --db-* values."
+        )
     )
     option_parser.add_option(
         "--meta-prefix",
