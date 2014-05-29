@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Export Bugzilla bugs to a TaskJuggler project.
@@ -6,8 +6,7 @@ Export Bugzilla bugs to a TaskJuggler project.
 Tested with Bugzilla-3.6.2 and TaskJuggler-3.1.0.
 """
 
-from __future__ import print_function
-import optparse
+import argparse
 import sys
 
 try:
@@ -139,10 +138,10 @@ class TaskjugglerTask(object):
         self.task_list = []
         self.depends = []
 
-    def write(self, options, outfile, root_list, nesting_level):
+    def write(self, args, outfile, root_list, nesting_level):
         """Write task to outfile."""
         indent = "  " * nesting_level
-        bugurl = "%sshow_bug.cgi?id=%i" % (options.baseurl, self.bug_id)
+        bugurl = "%sshow_bug.cgi?id=%i" % (args.baseurl, self.bug_id)
         outfile.write(
             indent + "task bug_%i \"%s\" {\n" % (self.bug_id, self.name) +
             indent + "  BugID \"%i\"\n" % self.bug_id +
@@ -206,7 +205,7 @@ class TaskjugglerTask(object):
         outfile.write(indent + "}\n")
 
 
-def build_resolved_bug_task_list(options, db_connection, milestone):
+def build_resolved_bug_task_list(args, db_connection, milestone):
     """Build a list of resolved bugs."""
     task_list = []
 
@@ -246,7 +245,7 @@ def build_resolved_bug_task_list(options, db_connection, milestone):
         flag_estimate_needed = False
         flag_priority_needed = False
         is_meta = False
-        if summary.startswith(options.meta_prefix):
+        if summary.startswith(args.meta_prefix):
             continue
 
         # Translate Bugzilla values to TaskJuggler values
@@ -283,7 +282,7 @@ def build_resolved_bug_task_list(options, db_connection, milestone):
     return task_list
 
 
-def build_open_bug_task_list(options, db_connection, milestone):
+def build_open_bug_task_list(args, db_connection, milestone):
     """Build a list of open bugs."""
     task_list = []
 
@@ -318,14 +317,14 @@ def build_open_bug_task_list(options, db_connection, milestone):
         flag_estimate_needed = False
         flag_priority_needed = False
         is_meta = False
-        if summary.startswith(options.meta_prefix):
-            summary = summary[len(options.meta_prefix):]
+        if summary.startswith(args.meta_prefix):
+            summary = summary[len(args.meta_prefix):]
             is_meta = True
 
         # Translate Bugzilla values to TaskJuggler values
         name = summary.replace('"', "'")
         resource = bz_assigned_to.split("@")[0].replace(".", "")
-        if bz_priority == options.not_prioritized:
+        if bz_priority == args.not_prioritized:
             flag_priority_needed = True
         priority = PRIORITY_DICTIONARY.get(bz_priority, "100")
         fixed_timestamp = ""
@@ -334,7 +333,7 @@ def build_open_bug_task_list(options, db_connection, milestone):
         elif estimated_time > 0.0:
             effort = str(estimated_time) + "h"
         else:
-            effort = options.default_effort
+            effort = args.default_effort
             flag_estimate_needed = True
 
         # Optional, simplify the Bugzilla assigned to
@@ -385,130 +384,131 @@ def build_open_bug_task_list(options, db_connection, milestone):
     return task_list
 
 
-def write_task_list(options, task_list, filename):
+def write_task_list(args, task_list, filename):
     """Write a task list to a file."""
     with open(filename, "w") as outfile:
         for task in task_list:
-            task.write(options, outfile, task_list, 0)
+            task.write(args, outfile, task_list, 0)
 
 
-def export(options, milestones, db_connection):
+def export(args, db_connection):
     """Read from the Bugzilla database and export to the .tji file."""
-    for milestone in milestones:
+    for milestone in args.milestones:
         # Build a task list of resolved bugs from the Bugzilla database
         task_list = build_resolved_bug_task_list(
-            options,
+            args,
             db_connection,
             milestone
         )
 
         # Write the task list to the output file
-        write_task_list(options, task_list, milestone + "_resolved_tasks.tji")
+        write_task_list(args, task_list, milestone + "_resolved_tasks.tji")
 
         # Build a task list of open bugs from the Bugzilla database
-        task_list = build_open_bug_task_list(options, db_connection, milestone)
+        task_list = build_open_bug_task_list(args, db_connection, milestone)
 
         # Write the task list to the output file
-        write_task_list(options, task_list, milestone + "_open_tasks.tji")
+        write_task_list(args, task_list, milestone + "_open_tasks.tji")
 
 
 def main():
     """main"""
-    option_parser = optparse.OptionParser(
-        usage=(
-            "usage: %prog [options]\n"
-            "  Exports Bugzilla bugs to a TaskJuggler project.\n"
-            "  See /etc/bugzilla3/localconfig for --db-* values."
+    arg_parser = argparse.ArgumentParser(
+        description=(
+            "Exports Bugzilla bugs to a TaskJuggler project. "
+            "See /etc/bugzilla3/localconfig for --db-* values."
         )
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--meta-prefix",
         action="store",
         dest="meta_prefix",
         metavar="STR",
         default="META: ",
-        help="name prefix for meta bugs (default=%default)"
+        help="name prefix for meta bugs (default=%(default)s)"
     )
     # see https://bugzilla.mozilla.org/show_bug.cgi?id=49862
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--not-prioritized",
         action="store",
         dest="not_prioritized",
         metavar="PRIORITY",
         default="P5",
-        help="Bugzilla priority of non-prioritized bugs (default=%default)"
+        help="Bugzilla priority of non-prioritized bugs (default=%(default)s)"
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--default-effort",
         action="store",
         dest="default_effort",
         metavar="STR",
         default="16.0h",
-        help="effort to use if bug has no effort assigned (default=%default)"
+        help="effort to use if bug has no effort assigned (default=%(default)s)"
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--db-host",
         action="store",
         dest="db_host",
         metavar="HOST",
         default="localhost",
-        help="Bugzilla database hostname (default=%default)"
+        help="Bugzilla database hostname (default=%(default)s)"
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--db-port",
         action="store",
         type="int",
         dest="db_port",
         metavar="PORT",
         default=3306,
-        help="Bugzilla database port (default=%default)"
+        help="Bugzilla database port (default=%(default)i)"
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--db-name",
         action="store",
         dest="db_name",
         metavar="NAME",
         default="bugzilla3",
-        help="Bugzilla database name (default=%default)"
+        help="Bugzilla database name (default=%(default)s)"
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--db-user",
         action="store",
         dest="db_user",
         metavar="NAME",
         default="bugzilla3",
-        help="Bugzilla database user (default=%default)"
+        help="Bugzilla database user (default=%(default)s)"
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--db-pass",
         action="store",
         dest="db_pass",
         metavar="PASSWORD",
         default=None,
-        help="Bugzilla database password (default=%default)"
+        help="Bugzilla database password (default=%(default)s)"
     )
-    option_parser.add_option(
+    arg_parser.add_argument(
         "--baseurl",
         action="store",
         dest="baseurl",
         metavar="URL",
         default="http://bugzilla.monticello.com/",
-        help="Bugzilla base URL (default=%default)"
+        help="Bugzilla base URL (default=%(default)s)"
     )
-
-    # Process arguments
-    (options, args) = option_parser.parse_args()
-    if len(args) < 1:
-        option_parser.error("No milestone specified.")
+    arg_parser.add_argument(
+        "milestones",
+        metavar="milestone",
+        nargs="+",
+        help="Bugzilla milestone"
+    )
+    args = arg_parser.parse_args()
 
     # Connect to the Bugzilla database
     try:
         db_connection = mysql.connector.connect(
-            host=options.db_host,
-            port=options.db_port,
-            user=options.db_user,
-            passwd=options.db_pass,
-            db=options.db_name
+            host=args.db_host,
+            port=args.db_port,
+            user=args.db_user,
+            passwd=args.db_pass,
+            db=args.db_name
         )
     except Exception as exc:
         print("Error connecting to database: %s" % exc, file=sys.stderr)
@@ -516,7 +516,7 @@ def main():
 
     try:
         # Export from the database.
-        export(options, args, db_connection)
+        export(args, db_connection)
     finally:
         # Close the connection to the Bugzilla database
         db_connection.close()
