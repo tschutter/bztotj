@@ -12,7 +12,7 @@ Export bugs to a TaskJuggler include file::
 
 This creates the files "bugzilla_flags.tji", "bugzilla_project.tji",
 "MILESTONE_resolved_tasks.tji", and "MILESTONE_open_tasks.tji".
-Import them as show in the example project "bzexample.tjp"::
+Import them as shown in the example project "bzexample.tjp"::
 
     project bzexample "Example" "1.0" 2012-05-01 2012-06-01 {
       include "bugzilla_project.tji"
